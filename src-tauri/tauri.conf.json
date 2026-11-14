@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "右键菜单管理器",
+  "productName": "ctx-menu-manager",
   "version": "1.0.0",
   "identifier": "com.tongenshen.ctxmenumanager",
   "build": {
