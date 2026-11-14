@@ -2,7 +2,9 @@
 //!
 //! 两种禁用方式并存（按用户要求）：
 //!
-//! - **Blocked 标记**：临时开关，加一个 `Blocked` 值即可，随时可逆，数据不丢。
+//! - **临时开关**：可逆，数据不丢。两类菜单项机制不同——
+//!   shell 扩展是「把 CLSID 加进 `Shell Extensions\Blocked` 列表」，
+//!   verb 是「加 `LegacyDisable` 值」。详见 `set_blocked`。
 //! - **删除键**：彻底移除，删前导出 `.reg` 备份到 `%APPDATA%\CtxMenuManager\backup`。
 
 use std::fs;
@@ -83,16 +85,84 @@ fn backup_key(hive: Hive, item: &MenuItem) -> Result<PathBuf, String> {
     Ok(file)
 }
 
-/// 设置或清除 `Blocked` 标记（临时开关）。
+/// 启用或禁用某个菜单项（可逆的临时开关）。
+///
+/// **两类菜单项走的机制不一样**：
+///
+/// - **Shell 扩展**：把 CLSID 加进/移出
+///   `HKCU\Software\Microsoft\Windows\CurrentVersion\Shell Extensions\Blocked`。
+///   在扩展自己的键下面加值不会有任何效果。
+/// - **Verb**：在 verb 键下加/删 `LegacyDisable`（只需要存在）。
+///
+/// 改动写入 HKCU，因此只影响当前用户，也不需要管理员权限——即使该扩展
+/// 本身注册在 HKLM 下。
 pub fn set_blocked(item: &MenuItem, blocked: bool) -> Result<String, String> {
+    match item.kind {
+        ItemKind::ShellExtension => set_extension_blocked(item, blocked),
+        ItemKind::Verb => set_verb_disabled(item, blocked),
+    }
+}
+
+/// Shell 扩展：通过把 CLSID 加入屏蔽列表来禁用。
+fn set_extension_blocked(item: &MenuItem, blocked: bool) -> Result<String, String> {
+    let clsid = item
+        .clsid
+        .as_deref()
+        .ok_or_else(|| "这个扩展没有记录 CLSID，无法用屏蔽列表禁用；请改用「删除」。".to_string())?
+        .to_string();
+
+    let hkcu = Hive::CurrentUser.root();
+
+    if blocked {
+        let (list, _) = hkcu
+            .create_subkey(crate::registry::EXT_BLOCKLIST)
+            .map_err(|e| format!("打开屏蔽列表失败: {e}"))?;
+        // 值内容无关紧要，键名（CLSID）才是关键。
+        list.set_value(&clsid, &String::new())
+            .map_err(|e| format!("写入屏蔽列表失败: {e}"))?;
+        Ok(format!(
+            "已禁用「{}」（已加入扩展屏蔽列表），重启资源管理器后生效",
+            item.display_name
+        ))
+    } else {
+        let mut removed = false;
+
+        // 通常是我们写进 HKCU 的。
+        if let Ok(list) = hkcu.open_subkey_with_flags(crate::registry::EXT_BLOCKLIST, KEY_SET_VALUE) {
+            match list.delete_value(&clsid) {
+                Ok(()) => removed = true,
+                Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => return Err(format!("从屏蔽列表移除失败: {e}")),
+            }
+        }
+
+        // 也可能是被别处写进 HKLM 的，那种情况需要管理员权限才能清。
+        if !removed {
+            let hklm = Hive::LocalMachine.root();
+            if let Ok(list) = hklm.open_subkey(crate::registry::EXT_BLOCKLIST) {
+                if list.get_value::<String, _>(&clsid).is_ok() {
+                    return Err(
+                        "该项被 HKLM 的屏蔽列表禁用（影响所有用户），需要管理员权限才能清除。"
+                            .to_string(),
+                    );
+                }
+            }
+        }
+
+        Ok(if removed {
+            format!("已启用「{}」，重启资源管理器后生效", item.display_name)
+        } else {
+            format!("「{}」本来就是启用状态", item.display_name)
+        })
+    }
+}
+
+/// Verb：通过 LegacyDisable 值禁用。
+fn set_verb_disabled(item: &MenuItem, blocked: bool) -> Result<String, String> {
     let root = item.hive.root();
     let path = format!(
-        "Software\\Classes\\{}\\{}\\{}",
+        "Software\\Classes\\{}\\shell\\{}",
         item.scope.classes_path(),
-        match item.kind {
-            ItemKind::ShellExtension => "shellex\\ContextMenuHandlers",
-            ItemKind::Verb => "shell",
-        },
         item.name
     );
 
@@ -100,24 +170,36 @@ pub fn set_blocked(item: &MenuItem, blocked: bool) -> Result<String, String> {
         .open_subkey_with_flags(&path, KEY_SET_VALUE)
         .map_err(|e| {
             if item.hive.needs_admin() {
-                format!("需要管理员权限才能修改 {path}: {e}")
+                format!(
+                    "这一项注册在 HKLM（所有用户），普通权限改不了。\n\
+                     请关闭程序，右键选择「以管理员身份运行」后再试。\n\n路径：{path}\n错误：{e}"
+                )
             } else {
                 format!("打开 {path} 失败: {e}")
             }
         })?;
 
     if blocked {
-        key.set_value("Blocked", &1u32)
-            .map_err(|e| format!("写入 Blocked 失败: {e}"))?;
-        Ok(format!("已临时禁用「{}」，随时可以恢复", item.display_name))
+        // 微软文档：该值只需存在，类型可为任意（REG_NONE 最贴切）。
+        key.set_raw_value(
+            "LegacyDisable",
+            &winreg::RegValue {
+                bytes: Vec::new().into(),
+                vtype: winreg::enums::REG_NONE,
+            },
+        )
+        .map_err(|e| format!("写入 LegacyDisable 失败: {e}"))?;
+        Ok(format!(
+            "已禁用「{}」（写入 LegacyDisable），重启资源管理器后生效",
+            item.display_name
+        ))
     } else {
-        match key.delete_value("Blocked") {
-            Ok(()) => Ok(format!("已启用「{}」", item.display_name)),
-            // 本来就没有 Blocked，视为成功。
+        match key.delete_value("LegacyDisable") {
+            Ok(()) => Ok(format!("已启用「{}」，重启资源管理器后生效", item.display_name)),
             Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => {
                 Ok(format!("「{}」本来就是启用状态", item.display_name))
             }
-            Err(e) => Err(format!("清除 Blocked 失败: {e}")),
+            Err(e) => Err(format!("清除 LegacyDisable 失败: {e}")),
         }
     }
 }
@@ -133,7 +215,10 @@ pub fn delete_item(item: &MenuItem) -> Result<String, String> {
         .open_subkey_with_flags(&parent, KEY_ALL_ACCESS)
         .map_err(|e| {
             if item.hive.needs_admin() {
-                format!("需要管理员权限才能删除（{parent}）: {e}")
+                format!(
+                    "这一项注册在 HKLM（所有用户），删除需要管理员权限。\n\
+                     请关闭程序，右键选择「以管理员身份运行」后再试。\n\n路径：{parent}\n错误：{e}"
+                )
             } else {
                 format!("打开 {parent} 失败: {e}")
             }

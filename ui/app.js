@@ -308,7 +308,11 @@ function renderList() {
     // Hive
     const hiveCell = el('div');
     const hiveBadge = el('span', `badge badge-hive${it.needs_admin ? ' admin' : ''}`, it.hive);
-    if (it.needs_admin) hiveBadge.title = '需要管理员权限才能修改';
+    if (it.needs_admin) {
+      hiveBadge.title = it.kind === 'shell_extension'
+        ? '注册在所有用户名下（HKLM）。禁用不需要提权，但删除需要管理员权限。'
+        : '注册在所有用户名下（HKLM），禁用和删除都需要管理员权限。';
+    }
     hiveCell.appendChild(hiveBadge);
     row.appendChild(hiveCell);
 
@@ -320,29 +324,59 @@ function renderList() {
     // 操作
     const actions = el('div', 'actions');
 
+    // 需要管理员权限时在文字后加一个 * 标记。
+    // 星号槽位始终存在（不需要时用 visibility 隐藏），这样所有按钮
+    // 宽度和文字位置完全一致，不会因为有没有星号而跳动。
+    const label = (text, needsAdmin) => {
+      const frag = document.createDocumentFragment();
+      frag.appendChild(document.createTextNode(text));
+      const mark = document.createElement('span');
+      mark.className = `admin-mark${needsAdmin ? '' : ' is-hidden'}`;
+      mark.textContent = '*';
+      frag.appendChild(mark);
+      return frag;
+    };
+
     if (settings.disableMode === 'delete') {
       // 删除模式：只有「移除」一个按钮，点了就是备份后删除，条目会消失。
-      const rm = el('button', 'btn-sm danger', '移除');
-      rm.title = it.is_system
-        ? '系统自带项，不提供移除'
-        : '导出 .reg 备份后删除该注册表键（不可恢复，除非导入备份）';
+      const rm = el('button', 'btn-sm danger');
+      rm.appendChild(label('移除', it.needs_admin && !it.is_system));
+      if (it.is_system) {
+        rm.title = '系统自带项，不提供移除';
+      } else if (it.needs_admin) {
+        rm.title = '导出 .reg 备份后删除该键。此项在 HKLM 下，需要以管理员身份运行本程序。';
+      } else {
+        rm.title = '导出 .reg 备份后删除该注册表键（不可恢复，除非导入备份）';
+      }
       rm.disabled = it.is_system;
       rm.onclick = () => removeItem(it);
       actions.appendChild(rm);
     } else {
       // 标记模式：临时开关 + 单独的彻底删除。
-      const toggle = el('button', `btn-sm${it.blocked ? '' : ' on'}`,
-        it.blocked ? '启用' : '禁用');
-      toggle.title = it.blocked
-        ? '清除 Blocked 标记，恢复显示（不删数据）'
-        : '加 Blocked 标记临时隐藏，随时可恢复';
+      const toggle = el('button', `btn-sm${it.blocked ? '' : ' on'}`);
+      toggle.appendChild(label(it.blocked ? '启用' : '禁用', !it.blocked && it.toggle_needs_admin));
+      if (it.blocked) {
+        toggle.title = '移除禁用标记，恢复显示（不删数据）';
+      } else if (it.toggle_needs_admin) {
+        toggle.title = '写入 LegacyDisable 临时隐藏。此项在 HKLM 下，需要以管理员身份运行本程序。';
+      } else {
+        toggle.title = it.kind === 'shell_extension'
+          ? '把该扩展加入当前用户的屏蔽列表，可随时恢复（不改原键、不需要提权）'
+          : '写入 LegacyDisable 临时隐藏，可随时恢复';
+      }
       toggle.onclick = () => toggleItem(it, !it.blocked);
       actions.appendChild(toggle);
 
-      const del = el('button', 'btn-sm danger', '删除');
-      del.title = '彻底删除注册表键（会自动备份 .reg）';
+      const del = el('button', 'btn-sm danger');
+      del.appendChild(label('删除', it.needs_admin && !it.is_system));
+      if (it.is_system) {
+        del.title = '系统自带项，不提供删除';
+      } else if (it.needs_admin) {
+        del.title = '彻底删除注册表键（会自动备份）。此项在 HKLM 下，需要以管理员身份运行本程序。';
+      } else {
+        del.title = '彻底删除注册表键（会自动备份 .reg）';
+      }
       del.disabled = it.is_system;
-      if (it.is_system) del.title = '系统自带项，不提供删除';
       del.onclick = () => removeItem(it);
       actions.appendChild(del);
     }

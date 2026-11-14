@@ -1,6 +1,6 @@
 {
   "name": "ctx-menu-manager",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "description": "Windows 右键菜单管理器 (Tauri 2)",

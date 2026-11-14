@@ -6,7 +6,7 @@
 
 [English](README.en.md) · [中文](README.md)
 
-![版本](https://img.shields.io/badge/version-1.0.0-blue)
+![版本](https://img.shields.io/badge/version-2.0.0-blue)
 ![平台](https://img.shields.io/badge/platform-Windows%2011-0078D6)
 ![许可证](https://img.shields.io/badge/license-MIT-green)
 
@@ -50,8 +50,10 @@ Windows 11 从 21H2 起换了精简右键菜单，把 7-Zip、Git、网盘、IDE
 
 | 方式 | 做法 | 适用场景 |
 |---|---|---|
-| **标记隐藏**（默认） | 添加 `Blocked` 值 | 临时关掉，随时可撤销，数据不丢 |
+| **标记隐藏**（默认） | 扩展：把 CLSID 加入 HKCU 屏蔽列表<br>命令项：在键下加 `LegacyDisable` | 临时关掉，随时可撤销，数据不丢 |
 | **备份后删除** | 导出 `.reg` 备份后移除整个键 | 确定不要了，清理干净 |
+
+两类菜单项的禁用机制**不一样**，这是容易踩坑的地方：Windows 对 shell 扩展只认 `Shell Extensions\Blocked` 列表里的 CLSID，对命令项只认 `LegacyDisable` 值。在键下写一个 `Blocked` 值是不会生效的。
 
 删除前会自动把整个键（含子键）导出到 `%APPDATA%\CtxMenuManager\backup\`，文件名带时间戳，出问题导回去即可。
 
@@ -73,8 +75,8 @@ Windows 11 从 21H2 起换了精简右键菜单，把 7-Zip、Git、网盘、IDE
 
 | 文件 | 说明 |
 |---|---|
-| `右键菜单管理器_1.0.0_x64-setup.exe` | **安装版**。装到当前用户目录，开始菜单有快捷方式，可从「应用和功能」卸载。 |
-| `右键菜单管理器_1.0.0_x64-portable.zip` | **便携版**。解压后双击 exe 即用，不写安装记录，可放 U 盘。 |
+| `ctx-menu-manager_2.0.0_x64-setup.exe` | **安装版**。装到当前用户目录，开始菜单有快捷方式，可从「应用和功能」卸载。 |
+| `ctx-menu-manager_2.0.0_x64-portable.zip` | **便携版**。解压后双击 exe 即用，不写安装记录，可放 U 盘。 |
 
 两个版本功能完全一样，区别只是要不要「安装」这个过程。系统要求见下方。
 

@@ -7,8 +7,16 @@
 //! 2. **Verb 菜单项** —— `...\shell\<name>`，默认值是显示文字，
 //!    命令在 `...\shell\<name>\command` 的默认值里。
 //!
-//! 两者都可以用同一个 `Blocked` 值临时禁用（Windows 官方认可的开关），
-//! 也都可以整键删除。这就是 UI 上「临时开关」和「彻底删除」两种操作。
+//! **这两类的「临时禁用」机制完全不同，不能混用**（这是常见的踩坑点）：
+//!
+//! - Shell 扩展：把 **CLSID** 写进
+//!   `HKCU\Software\Microsoft\Windows\CurrentVersion\Shell Extensions\Blocked`
+//!   这个列表（键名是 CLSID，值是随便一个字符串，通常空串）。在扩展自身键下
+//!   加 `Blocked` 值**没有任何效果**。
+//! - Verb：在 verb 键下加 `LegacyDisable`。这个值只需要存在，类型和数据都不重要
+//!   （微软文档：[Verbs and File Associations]）。在 verb 下加 `Blocked` 同样无效。
+//!
+//! 两类都可以整键删除，那就是 UI 上的「删除」。
 
 use std::path::Path;
 
@@ -145,10 +153,16 @@ pub struct MenuItem {
     pub target: Option<String>,
     /// verb 的命令行。
     pub command: Option<String>,
-    /// 是否已被 Blocked 标记禁用。
+    /// 是否已被禁用（扩展看屏蔽列表，verb 看 LegacyDisable）。
     pub blocked: bool,
-    /// 修改是否需要管理员权限。
+    /// **删除/改键**是否需要管理员权限（取决于该项本身在 HKCU 还是 HKLM）。
     pub needs_admin: bool,
+    /// **临时禁用**是否需要管理员权限。
+    ///
+    /// 与 `needs_admin` 不同：shell 扩展的禁用是往 HKCU 的屏蔽列表里加 CLSID，
+    /// 即使扩展本身注册在 HKLM 下也不需要提权；verb 的禁用要改它自己的键，
+    /// 所以 HKLM 下的 verb 才需要管理员。
+    pub toggle_needs_admin: bool,
     /// 是否是 Windows 系统自带的项（只读，不提供删除）。
     pub is_system: bool,
 }
@@ -185,6 +199,25 @@ fn read_value(key: &RegKey, name: &str) -> Option<String> {
 /// 读默认值（REG_SZ）。
 fn read_default(key: &RegKey) -> Option<String> {
     key.get_value::<String, _>("").ok()
+}
+
+/// Shell 扩展的全局屏蔽列表（按 CLSID）。
+///
+/// 这是 Windows 官方认可的 shell 扩展开关：键名是 CLSID，值内容无所谓。
+/// HKCU 影响当前用户，HKLM 影响所有用户。
+pub const EXT_BLOCKLIST: &str =
+    "Software\\Microsoft\\Windows\\CurrentVersion\\Shell Extensions\\Blocked";
+
+/// 某个 CLSID 是否在屏蔽列表里。
+pub fn is_clsid_blocked(clsid: &str) -> bool {
+    for hive in [Hive::CurrentUser, Hive::LocalMachine] {
+        if let Ok(key) = hive.root().open_subkey(EXT_BLOCKLIST) {
+            if key.get_value::<String, _>(clsid).is_ok() {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 /// 在 HKCU / HKLM 中查找 CLSID 的注册信息，返回 (友好名, 服务器路径)。
@@ -244,8 +277,12 @@ pub fn scan_scope(hive: Hive, scope: Scope, out: &mut Vec<MenuItem>) {
                 continue;
             };
             let clsid = read_default(&sub);
-            let blocked = sub.get_value::<u32, _>("Blocked").is_ok()
-                || read_value(&sub, "Blocked").is_some();
+            // 扩展的禁用状态看的是全局屏蔽列表里有没有这个 CLSID，
+            // 不是扩展键自己下面的某个值。
+            let blocked = clsid
+                .as_deref()
+                .map(is_clsid_blocked)
+                .unwrap_or(false);
 
             let (friendly, server) = match &clsid {
                 Some(c) => resolve_clsid(c),
@@ -274,6 +311,8 @@ pub fn scan_scope(hive: Hive, scope: Scope, out: &mut Vec<MenuItem>) {
                 command: None,
                 blocked,
                 needs_admin: hive.needs_admin(),
+                // 扩展禁用走 HKCU 屏蔽列表，永远不需要提权。
+                toggle_needs_admin: false,
                 is_system,
             });
         }
@@ -286,8 +325,9 @@ pub fn scan_scope(hive: Hive, scope: Scope, out: &mut Vec<MenuItem>) {
             let Ok(sub) = verb_key.open_subkey(&name) else {
                 continue;
             };
-            let blocked = sub.get_value::<u32, _>("Blocked").is_ok()
-                || read_value(&sub, "Blocked").is_some();
+            // Verb 的禁用标记是 LegacyDisable：只需要存在，类型无所谓。
+            let blocked = sub.get_value::<String, _>("LegacyDisable").is_ok()
+                || sub.get_raw_value("LegacyDisable").is_ok();
 
             // verb 的默认值可能是显示文字，也可能是 MUIVerb 指示的本地化串。
             let mut display = read_default(&sub).unwrap_or_default();
@@ -333,6 +373,8 @@ pub fn scan_scope(hive: Hive, scope: Scope, out: &mut Vec<MenuItem>) {
                 command,
                 blocked,
                 needs_admin: hive.needs_admin(),
+                // verb 的禁用要改自己的键，HKLM 下的才需要提权。
+                toggle_needs_admin: hive.needs_admin(),
                 is_system: is_system || !has_command,
             });
         }

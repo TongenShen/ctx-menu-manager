@@ -430,7 +430,34 @@ input:focus, select:focus { border-color: var(--accent); }
   font-family: inherit;
   transition: all .1s;
   white-space: nowrap;
+
+  /* 文字一律居中。星号绝对定位钉在右侧、不参与流式布局，
+     左右 padding 相等，所以两组按钮宽度相同、文字位置也相同。 */
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 9px;
+  padding-right: 9px;
+  min-width: 62px;
+  box-sizing: border-box;
 }
+
+/* 星号槽位：绝对定位在右侧，不占文字空间。
+   不需要显示时用 visibility 隐藏而非 display:none，保持可预测性。 */
+.btn-sm .admin-mark {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11.5px;
+  line-height: 1;
+  color: var(--amber);
+  font-weight: 700;
+  pointer-events: none;
+}
+.btn-sm .admin-mark.is-hidden { visibility: hidden; }
+
 .btn-sm:hover { background: var(--bg-3); color: var(--fg); }
 .btn-sm.on { color: var(--green); border-color: var(--ok-border); }
 .btn-sm.on:hover { background: var(--ok-bg); }

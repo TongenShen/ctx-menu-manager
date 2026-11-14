@@ -6,7 +6,7 @@ No registry paths to memorize, no commands to type. Toggle, click, restart Explo
 
 [English](README.en.md) · [中文](README.md)
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-2.0.0-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2011-0078D6)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -50,8 +50,10 @@ You choose what the "disable" action does:
 
 | Mode | Mechanism | When to use |
 |---|---|---|
-| **Mark as hidden** (default) | Adds a `Blocked` value | Temporarily off, fully reversible, nothing lost |
+| **Mark as hidden** (default) | Extensions: add the CLSID to the HKCU blocklist<br>Verbs: add a `LegacyDisable` value | Temporarily off, fully reversible, nothing lost |
 | **Back up and delete** | Exports `.reg`, then removes the key | You are sure, and want it gone |
+
+The two entry types are disabled by **different mechanisms**, which is an easy trap: Windows only honours CLSIDs in the `Shell Extensions\Blocked` list for shell extensions, and only the `LegacyDisable` value for verbs. Writing a `Blocked` value under the key does nothing.
 
 Before any deletion the entire key (including subkeys) is exported to `%APPDATA%\CtxMenuManager\backup\` with a timestamp in the filename. Import it back if something breaks.
 
@@ -73,8 +75,8 @@ Get the latest from [Releases](https://github.com/TongenShen/ctx-menu-manager/re
 
 | File | Description |
 |---|---|
-| `ctx-menu-manager_1.0.0_x64-setup.exe` | **Installer.** Installs per-user, adds a Start menu shortcut, uninstalls from Apps & Features. |
-| `ctx-menu-manager_1.0.0_x64-portable.zip` | **Portable.** Unzip and run the exe. No install records, USB-friendly. |
+| `ctx-menu-manager_2.0.0_x64-setup.exe` | **Installer.** Installs per-user, adds a Start menu shortcut, uninstalls from Apps & Features. |
+| `ctx-menu-manager_2.0.0_x64-portable.zip` | **Portable.** Unzip and run the exe. No install records, USB-friendly. |
 
 Both are feature-identical — the only difference is whether you go through an installer.
 
