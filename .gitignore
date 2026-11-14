@@ -1,0 +1,18 @@
+# Rust / Cargo
+src-tauri/target/
+target/
+
+# Node
+node_modules/
+package-lock.json
+
+# Tauri 生成物
+src-tauri/gen/schemas/
+
+# 打包产物
+dist-release/
+
+# 系统
+Thumbs.db
+desktop.ini
+.DS_Store

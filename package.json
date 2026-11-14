@@ -1,0 +1,15 @@
+{
+  "name": "ctx-menu-manager",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Windows 右键菜单管理器 (Tauri 2)",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.5"
+  }
+}

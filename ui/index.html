@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>右键菜单管理器</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div>
+        <h1>右键菜单管理器</h1>
+        <p class="sub" id="sysinfo">正在读取系统信息…</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="classic-box">
+        <div class="classic-info">
+          <span class="classic-label">经典右键菜单</span>
+          <span class="classic-state" id="classicState">检测中…</span>
+        </div>
+        <button id="btnClassic" class="btn btn-primary">开启</button>
+      </div>
+      <button id="btnSettings" class="btn-icon" title="设置">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <nav class="scopes" id="scopes"></nav>
+
+  <main class="content">
+    <div class="toolbar">
+      <input type="search" id="search" placeholder="搜索菜单项…" />
+      <label class="chk"><input type="checkbox" id="onlyEnabled" /> 只看已启用</label>
+      <label class="chk"><input type="checkbox" id="hideSystem" /> 隐藏系统项</label>
+      <span class="spacer"></span>
+      <button id="btnNew" class="btn">＋ 新建菜单项</button>
+      <button id="btnRestart" class="btn btn-warn">重启资源管理器</button>
+      <button id="btnRefresh" class="btn btn-ghost">刷新</button>
+    </div>
+
+    <div class="table-head">
+      <span class="col-name">名称</span>
+      <span class="col-kind">类型</span>
+      <span class="col-hive">位置</span>
+      <span class="col-target">目标</span>
+      <span class="col-actions">操作</span>
+    </div>
+    <div id="list" class="list"></div>
+    <div id="empty" class="empty" hidden>没有匹配的菜单项</div>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+  <div id="tip" class="tip" hidden></div>
+
+  <!-- 新建菜单项对话框 -->
+  <div id="modal" class="modal" hidden>
+    <div class="modal-box">
+      <h2>新建右键菜单项</h2>
+      <p class="hint">会在所选位置新建一个 <code>shell</code> 项，带命令行。</p>
+
+      <label>位置
+        <select id="newScope"></select>
+      </label>
+      <label>写入到
+        <select id="newHive">
+          <option value="HKCU">HKCU（当前用户，推荐）</option>
+          <option value="HKLM">HKLM（所有用户，需管理员）</option>
+        </select>
+      </label>
+      <label>键名 <span class="hint-inline">注册表里的名字，英文无空格</span>
+        <input type="text" id="newName" placeholder="例如 OpenWithVSCode" />
+      </label>
+      <label>显示文字
+        <input type="text" id="newDisplay" placeholder="例如 用 VS Code 打开" />
+      </label>
+      <label>命令
+        <input type="text" id="newCommand" placeholder='例如 "C:\Program Files\...\Code.exe" "%1"' />
+      </label>
+
+      <div class="modal-actions">
+        <button id="btnCancel" class="btn btn-ghost">取消</button>
+        <button id="btnCreate" class="btn btn-primary">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设置面板 -->
+  <div id="settingsModal" class="modal" hidden>
+    <div class="modal-box settings-box">
+      <h2>设置</h2>
+      <p class="hint">这些偏好保存在本机，下次打开自动沿用。</p>
+
+      <!-- 禁用方式 -->
+      <div class="set-group">
+        <h3>点「禁用」时怎么处理</h3>
+        <p class="set-desc">
+          影响列表里每条右侧的「禁用」按钮。
+          <strong>标记隐藏</strong>只加一个 <code>Blocked</code> 值，随时可撤销、不丢数据；
+          <strong>备份后删除</strong>会移除整个注册表键，删前自动导出 <code>.reg</code> 备份。
+        </p>
+        <div class="segmented" id="segDisableMode">
+          <button class="seg" data-value="blocked">标记隐藏（推荐）</button>
+          <button class="seg" data-value="delete">备份后删除</button>
+        </div>
+      </div>
+
+      <!-- 悬停说明 -->
+      <div class="set-group">
+        <h3>悬停说明</h3>
+        <p class="set-desc">
+          把鼠标放在位置标签上时，显示该位置的用途和对应注册表路径。
+        </p>
+        <div class="segmented" id="segTooltip">
+          <button class="seg" data-value="on">显示</button>
+          <button class="seg" data-value="off">关闭</button>
+        </div>
+      </div>
+
+      <!-- 颜色主题 -->
+      <div class="set-group">
+        <h3>颜色主题</h3>
+        <p class="set-desc">切换后立即生效，无需重启。</p>
+        <div class="themes" id="themeGrid"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button id="btnSettingsClose" class="btn btn-primary">完成</button>
+      </div>
+
+      <!-- 关于 -->
+      <div class="about">
+        <div class="about-row">
+          <span class="about-key">作者</span>
+          <span class="about-val">TongenShen</span>
+        </div>
+        <div class="about-row">
+          <span class="about-key">GitHub</span>
+          <button class="about-link" data-href="https://github.com/TongenShen">github.com/TongenShen</button>
+        </div>
+        <div class="about-row">
+          <span class="about-key">项目地址</span>
+          <button class="about-link" data-href="https://github.com/TongenShen/ctx-menu-manager">github.com/TongenShen/ctx-menu-manager</button>
+        </div>
+        <div class="about-row">
+          <span class="about-key">许可证</span>
+          <span class="about-val">MIT License · 开源免费</span>
+        </div>
+        <div class="about-row">
+          <span class="about-key">版本</span>
+          <span class="about-val">v1.0.0</span>
+        </div>
+        <p class="about-note">
+          本软件按「现状」提供，不附带任何担保。修改注册表存在风险，
+          建议操作前先导出备份或建立系统还原点。所有改动仅写入当前用户
+          （HKCU），不需要管理员权限。
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
