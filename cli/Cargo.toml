@@ -1,0 +1,16 @@
+[package]
+name = "ctxmenu"
+version = "2.1.0"
+description = "Windows 右键菜单命令行工具，兼作 MCP server"
+authors = ["TongenShen"]
+edition = "2021"
+rust-version = "1.77"
+
+[[bin]]
+name = "ctxmenu"
+path = "src/main.rs"
+
+[dependencies]
+ctx-menu-core = { path = "../core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

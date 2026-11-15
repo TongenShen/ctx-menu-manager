@@ -67,6 +67,24 @@ Windows 11 从 21H2 起换了精简右键菜单，把 7-Zip、Git、网盘、IDE
 - 搜索、只看已启用、隐藏系统项
 - 设置项保存在本机，下次打开自动沿用
 
+### 6. 命令行与 MCP（给 AI 用）
+
+除了图形界面，还提供 `ctxmenu` 命令行工具，它同时是 **MCP server**，可接入 Claude Desktop、Cursor、DeepSeek Harness 等 AI 客户端，让 AI 直接管理右键菜单。
+
+```powershell
+ctxmenu list                    # 列出所有菜单项
+ctxmenu disable "HKLM|file|ext|7-Zip"
+ctxmenu classic on              # 恢复经典菜单
+```
+
+MCP 接入只需一行配置：
+
+```json
+{ "mcpServers": { "ctxmenu": { "command": "ctxmenu", "args": ["mcp"] } } }
+```
+
+为什么不让 AI 直接翻注册表？因为右键菜单分散在十余处、且「禁用」机制按类型分岔，很容易用错（本项目 v1.0.0 就踩过这个坑）。详见 **[CLI 与 MCP 使用说明](docs/CLI-AND-MCP.md)**。
+
 ---
 
 ## 下载
@@ -75,10 +93,11 @@ Windows 11 从 21H2 起换了精简右键菜单，把 7-Zip、Git、网盘、IDE
 
 | 文件 | 说明 |
 |---|---|
-| `ctx-menu-manager_2.0.0_x64-setup.exe` | **安装版**。装到当前用户目录，开始菜单有快捷方式，可从「应用和功能」卸载。 |
-| `ctx-menu-manager_2.0.0_x64-portable.zip` | **便携版**。解压后双击 exe 即用，不写安装记录，可放 U 盘。 |
+| `ctx-menu-manager_2.1.0_x64-setup.exe` | **安装版**（图形界面）。装到当前用户目录，开始菜单有快捷方式，可从「应用和功能」卸载。 |
+| `ctx-menu-manager_2.1.0_x64-portable.zip` | **便携版**（图形界面）。解压后双击 exe 即用，不写安装记录，可放 U 盘。 |
+| `ctxmenu_2.1.0_x64.zip` | **命令行版 / MCP server**。解压出 `ctxmenu.exe` 放进 `PATH` 即可。不需要图形界面。 |
 
-两个版本功能完全一样，区别只是要不要「安装」这个过程。系统要求见下方。
+图形界面的两个版本功能完全一样，区别只是要不要「安装」这个过程。命令行版独立可用，也供 AI 客户端调用。
 
 ---
 

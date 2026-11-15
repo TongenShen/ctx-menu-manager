@@ -1,10 +1,10 @@
 // Windows 右键菜单管理器 —— Tauri 后端库入口。
+//
+// 所有注册表逻辑都在 `ctx-menu-core` 里，这一层只负责把命令暴露给前端。
 
-pub mod commands;
-pub mod registry;
-
-use commands::ClassicMenuState;
-use registry::{Hive, MenuItem, Scope};
+use ctx_menu_core::commands;
+use ctx_menu_core::registry::{self, Hive, MenuItem, Scope};
+use ctx_menu_core::ClassicMenuState;
 
 /// 列出所有右键菜单项。
 #[tauri::command]
@@ -18,7 +18,7 @@ fn check_target_exists(target: String) -> bool {
     registry::target_exists(&target)
 }
 
-/// 临时开关：设置或清除 Blocked 标记。
+/// 临时开关：禁用或启用某个菜单项。
 #[tauri::command]
 fn set_item_blocked(item: MenuItem, blocked: bool) -> Result<String, String> {
     commands::set_blocked(&item, blocked)
@@ -71,24 +71,12 @@ fn open_url(url: String) -> Result<String, String> {
 /// 当前的系统版本信息，用于界面提示。
 #[tauri::command]
 fn get_system_info() -> serde_json::Value {
-    use winreg::enums::HKEY_LOCAL_MACHINE;
-    use winreg::RegKey;
-
-    let key = RegKey::predef(HKEY_LOCAL_MACHINE)
-        .open_subkey("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion")
-        .ok();
-
-    let get = |name: &str| -> String {
-        key.as_ref()
-            .and_then(|k| k.get_value::<String, _>(name).ok())
-            .unwrap_or_default()
-    };
-
+    let info = ctx_menu_core::system_info();
     serde_json::json!({
-        "product": get("ProductName"),
-        "display": get("DisplayVersion"),
-        "build": get("CurrentBuildNumber"),
-        "ubr": get("UBR"),
+        "product": info.product,
+        "display": info.display,
+        "build": info.build,
+        "ubr": info.ubr,
     })
 }
 

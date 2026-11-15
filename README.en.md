@@ -67,6 +67,24 @@ Pick a location, type a key name, display text and command — it writes `shell\
 - Search, show-enabled-only, hide system entries
 - Preferences are stored locally and restored next launch
 
+### 6. CLI and MCP (for AI agents)
+
+Beyond the GUI, a `ctxmenu` command-line tool is included, and it doubles as an **MCP server** — plug it into Claude Desktop, Cursor, DeepSeek Harness or any other MCP client and let an agent manage your context menu directly.
+
+```powershell
+ctxmenu list                    # list every entry
+ctxmenu disable "HKLM|file|ext|7-Zip"
+ctxmenu classic on              # restore the classic menu
+```
+
+MCP setup is one line:
+
+```json
+{ "mcpServers": { "ctxmenu": { "command": "ctxmenu", "args": ["mcp"] } } }
+```
+
+Why not just let an agent edit the registry directly? Because context menu entries are spread across a dozen locations and the "disable" mechanism differs by entry type — easy to get wrong (v1.0.0 of this project did exactly that). See **[CLI & MCP guide](docs/CLI-AND-MCP.md)**.
+
 ---
 
 ## Download
@@ -75,10 +93,11 @@ Get the latest from [Releases](https://github.com/TongenShen/ctx-menu-manager/re
 
 | File | Description |
 |---|---|
-| `ctx-menu-manager_2.0.0_x64-setup.exe` | **Installer.** Installs per-user, adds a Start menu shortcut, uninstalls from Apps & Features. |
-| `ctx-menu-manager_2.0.0_x64-portable.zip` | **Portable.** Unzip and run the exe. No install records, USB-friendly. |
+| `ctx-menu-manager_2.1.0_x64-setup.exe` | **Installer** (GUI). Installs per-user, adds a Start menu shortcut, uninstalls from Apps & Features. |
+| `ctx-menu-manager_2.1.0_x64-portable.zip` | **Portable** (GUI). Unzip and run the exe. No install records, USB-friendly. |
+| `ctxmenu_2.1.0_x64.zip` | **CLI / MCP server.** Unzip `ctxmenu.exe` into your `PATH`. No GUI required. |
 
-Both are feature-identical — the only difference is whether you go through an installer.
+The two GUI builds are feature-identical — the only difference is whether you go through an installer. The CLI is standalone and is what AI clients invoke.
 
 ---
 

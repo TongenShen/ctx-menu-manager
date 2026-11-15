@@ -233,7 +233,7 @@ fn resolve_clsid(clsid: &str) -> (Option<String>, Option<String>) {
                 if let Ok(sk) = key.open_subkey(sub) {
                     if let Some(v) = read_default(&sk) {
                         if !v.trim().is_empty() {
-                            server = Some(clean_path(&v));
+                            server = Some(normalize_path(&v));
                             break;
                         }
                     }
@@ -246,14 +246,45 @@ fn resolve_clsid(clsid: &str) -> (Option<String>, Option<String>) {
 }
 
 /// 去掉路径里的环境变量和引号，取文件名便于展示。
-fn clean_path(raw: &str) -> String {
-    let trimmed = raw.trim().trim_matches('"').trim();
-    // 展开常见环境变量前缀，便于判断是否系统目录。
-    let expanded = trimmed
+/// 处理 `InprocServer32` / `LocalServer32` 的值：这是一个**纯文件路径**，
+/// 即使含空格也不带引号，所以整条保留，只展开环境变量。
+fn normalize_path(raw: &str) -> String {
+    raw.trim()
+        .trim_matches('"')
+        .trim()
         .replace("%SystemRoot%", "C:\\Windows")
         .replace("%windir%", "C:\\Windows")
-        .replace("%SystemDrive%", "C:");
-    expanded
+        .replace("%SystemDrive%", "C:")
+}
+
+/// 从**命令行**里取出可执行文件路径，用于列表展示。
+///
+/// 命令行和纯路径不同，形态有好几种：
+///   `"C:\Program Files\App\app.exe" "%1"`
+///   `C:\Windows\notepad.exe %1`
+///   `%SystemRoot%\system32\cmd.exe /c ...`
+/// 展示时只需要最前面的可执行文件，参数一律丢掉。
+fn clean_command(raw: &str) -> String {
+    let s = raw.trim();
+
+    // 带引号：取第一对引号之间的内容（这样路径里的空格不会误伤）。
+    let path = if let Some(stripped) = s.strip_prefix('"') {
+        match stripped.find('"') {
+            Some(end) => &stripped[..end],
+            None => stripped,
+        }
+    } else {
+        // 不带引号：按空格切，但只切一次，取第一段。
+        match s.find(' ') {
+            Some(end) => &s[..end],
+            None => s,
+        }
+    };
+
+    path.trim()
+        .replace("%SystemRoot%", "C:\\Windows")
+        .replace("%windir%", "C:\\Windows")
+        .replace("%SystemDrive%", "C:")
 }
 
 /// 判断一个服务器路径是否指向 Windows 系统目录。
@@ -369,7 +400,7 @@ pub fn scan_scope(hive: Hive, scope: Scope, out: &mut Vec<MenuItem>) {
                 scope,
                 hive,
                 clsid: None,
-                target: command.as_deref().map(clean_path),
+                target: command.as_deref().map(clean_command),
                 command,
                 blocked,
                 needs_admin: hive.needs_admin(),
